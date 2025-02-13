@@ -1,1 +1,0 @@
-# stedi-human-balance-project
