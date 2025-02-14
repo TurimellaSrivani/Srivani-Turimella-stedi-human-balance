@@ -12,7 +12,7 @@ spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
 
-# Load accelerometer landing data from Glue catalog
+# Load accelerometer landing data
 AccelerometerLanding_node1 = glueContext.create_dynamic_frame.from_options(
     format_options={"multiline": False},
     connection_type="s3",
@@ -21,16 +21,14 @@ AccelerometerLanding_node1 = glueContext.create_dynamic_frame.from_options(
     transformation_ctx="AccelerometerLanding_node1",
 )
 
-# Load customer trusted data from Glue catalog
-CustomerTrusted_node1 = glueContext.create_dynamic_frame.from_options(
-    format_options={"multiline": False},
-    connection_type="s3",
-    format="json",
-    connection_options={"paths": ["s3://stedi-project-bucket/customer_trusted_data/"], "recurse": True},
+# Load customer trusted data
+CustomerTrusted_node1 = glueContext.create_dynamic_frame.from_catalog(
+    database="stedi_lakehouse",
+    table_name="customer_trusted_data",
     transformation_ctx="CustomerTrusted_node1",
 )
 
-# Join accelerometer and customer trusted data on email/user
+# Join accelerometer data with trusted customers
 JoinedData_node2 = Join.apply(
     frame1=AccelerometerLanding_node1,
     frame2=CustomerTrusted_node1,
@@ -39,13 +37,14 @@ JoinedData_node2 = Join.apply(
     transformation_ctx="JoinedData_node2",
 )
 
-# Write the filtered accelerometer data to the trusted zone (S3)
-AccelerometerTrusted_node3 = glueContext.write_dynamic_frame.from_options(
+# Write to trusted zone with schema updates enabled
+AccelerometerTrusted_node3 = glueContext.write_dynamic_frame.from_catalog(
     frame=JoinedData_node2,
-    connection_type="s3",
-    format="json",
-    connection_options={"path": "s3://stedi-project-bucket/accelerometer_trusted_data/", "partitionKeys": []},
+    database="stedi_lakehouse",
+    table_name="accelerometer_trusted_data",
     transformation_ctx="AccelerometerTrusted_node3",
+    additional_options={"updateBehavior": "UPDATE_IN_DATABASE"},
 )
 
 job.commit()
+
