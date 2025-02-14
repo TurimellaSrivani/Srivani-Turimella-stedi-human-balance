@@ -12,7 +12,7 @@ spark = glueContext.spark_session
 job = Job(glueContext)
 job.init(args["JOB_NAME"], args)
 
-# Load customer landing data from Glue catalog
+# Load customer landing data
 CustomerLanding_node1 = glueContext.create_dynamic_frame.from_options(
     format_options={"multiline": False},
     connection_type="s3",
@@ -24,17 +24,18 @@ CustomerLanding_node1 = glueContext.create_dynamic_frame.from_options(
 # Filter customers who agreed to share data
 PrivacyFilter_node1693740592249 = Filter.apply(
     frame=CustomerLanding_node1,
-    f=lambda row: (not (row["shareWithResearchAsOfDate"] == 0)),
+    f=lambda row: (row["shareWithResearchAsOfDate"] is not None),
     transformation_ctx="PrivacyFilter_node1693740592249",
 )
 
-# Write the trusted customer data to the trusted zone (S3)
-CustomerTrusted_node3 = glueContext.write_dynamic_frame.from_options(
+# Write to trusted zone with schema updates enabled
+CustomerTrusted_node3 = glueContext.write_dynamic_frame.from_catalog(
     frame=PrivacyFilter_node1693740592249,
-    connection_type="s3",
-    format="json",
-    connection_options={"path": "s3://stedi-project-bucket/customer_trusted_data/", "partitionKeys": []},
+    database="stedi_lakehouse",
+    table_name="customer_trusted_data",
     transformation_ctx="CustomerTrusted_node3",
+    additional_options={"updateBehavior": "UPDATE_IN_DATABASE"},
 )
 
 job.commit()
+
